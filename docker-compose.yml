@@ -1,0 +1,91 @@
+version: '3'
+services:
+
+  # Kafka service, starts the Kafka server.
+  kafka:
+    image: confluentinc/cp-kafka:latest
+    platform: linux/amd64
+    container_name: kafka-broker
+    depends_on:
+      - zookeeper  # Depends on ZooKeeper service for Kafka to operate.
+    ports:
+      - 59092:59092  # Allows external access to Kafka.
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181  # Enables communication between Kafka and ZooKeeper.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:59092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1  # Sets the replication factor for offsets topics.
+
+  # ZooKeeper service, provides coordination and configuration storage for Kafka.
+  zookeeper:
+    image: confluentinc/cp-zookeeper:latest
+    platform: linux/amd64
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+      ZK_SERVER_HEAP: "-Xmx256M -Xms256M"  # Configures ZooKeeper's memory settings.
+    ports:
+      - 52181:2181  # Allows external access to ZooKeeper.
+
+  # Kafka Connect service, used for capturing and processing Kafka data streams.
+  kafka_connect:
+    container_name: kafka_connect
+    image: debezium/connect:latest
+    platform: linux/amd64
+    links:
+      - db
+      - kafka
+    ports:
+      - '8083:8083'  # Allows external access to Kafka Connect REST API.
+    environment:
+      - BOOTSTRAP_SERVERS=kafka:9092  # Defines connection settings to Kafka server.
+      - GROUP_ID=medium_debezium
+      - CONFIG_STORAGE_TOPIC=my_connect_configs
+      - OFFSET_STORAGE_TOPIC=my_connect_offsets
+      - STATUS_STORAGE_TOPIC=my_connect_statuses
+
+  # Kafka UI service, provides a user interface for monitoring and managing Kafka cluster.
+  kafka-ui:
+    container_name: kafka-ui-for-debezium-example
+    image: provectuslabs/kafka-ui:latest
+    platform: linux/amd64
+    ports:
+      - "9091:8080"  # Allows external access to Kafka UI.
+    restart: always
+    depends_on:
+      - kafka
+      - zookeeper
+    environment:
+      - KAFKA_CLUSTERS_0_NAME=local
+      - KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS=kafka:9092
+      - KAFKA_CLUSTERS_0_ZOOKEEPER=zookeeper:2181
+
+  # Database service, starts an example PostgreSQL database.
+  db:
+    image: debezium/example-postgres
+    platform: linux/amd64
+    restart: always
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres123
+    ports:
+      - 5432:5432  # Allows external access to PostgreSQL database.
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    command:
+      - "postgres"
+      - "-c"
+      - "wal_level=logical"
+    volumes:
+      - ./init.sql:/docker-entrypoint-initdb.d/create-db-tables.sql  # Loads SQL file to initialize the initial database tables.
+
+  # Adminer service, provides a database management interface.
+  adminer:
+    image: adminer
+    platform: linux/amd64
+    restart: always
+    ports:
+      - 8001:8080  # Allows external access to Adminer.

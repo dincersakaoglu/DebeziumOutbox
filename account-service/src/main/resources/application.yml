@@ -1,0 +1,16 @@
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/debezium_outbox
+    username: postgres
+    password: postgres123
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: 'false'
+    hibernate:
+      ddl-auto: update
+
+kafka:
+  brokers: localhost:59092
+
